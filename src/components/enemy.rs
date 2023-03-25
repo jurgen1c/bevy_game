@@ -1,11 +1,15 @@
 use {
   bevy::{prelude::*, window::PrimaryWindow },
   rand::prelude::*,
+  crate::components::player::{ Player, PLAYER_SIZE },
+  crate::events::game_over::GameOver,
+  crate::resources::score::Score,
 };
 
 pub const NUMBER_OF_ENEMIES: usize = 4;
 const ENEMY_SPEED: f32 = 200.0;
 pub const ENEMY_SIZE: f32 = 64.0;
+const ENEMY_SPAWN_TIME: f32 = 5.0;
 
 #[derive(Component)]
 pub struct Enemy {
@@ -18,7 +22,10 @@ impl Plugin for EnemyPlugin {
   fn build(&self, app: &mut App) {
     app.add_system(enemy_movement)
       .add_system(update_enemy_direction)
-      .add_system(confine_enemy_movement);
+      .add_system(confine_enemy_movement)
+      .add_system(enemy_hit_player)
+      .add_system(tick_enemy_spawn_timer)
+      .add_system(spawn_enemies_over_time);
   }
 }
 
@@ -27,6 +34,19 @@ pub struct EnemyStartUp;
 impl Plugin for EnemyStartUp {
   fn build(&self, app: &mut App) {
     app.add_startup_system(spawn_enemies);
+  }
+}
+
+#[derive(Resource)]
+pub struct EnemySpawnTimer {
+  pub timer: Timer
+}
+
+impl Default for EnemySpawnTimer {
+  fn default() -> Self {
+    Self {
+      timer: Timer::from_seconds(ENEMY_SPAWN_TIME, TimerMode::Repeating),
+    }
   }
 }
 
@@ -136,5 +156,65 @@ fn confine_enemy_movement(
     }
 
     transform.translation = translation;
+  }
+}
+
+fn tick_enemy_spawn_timer(
+  mut enemy_spawn_timer: ResMut<EnemySpawnTimer>,
+  time: Res<Time>,
+) {
+  enemy_spawn_timer.timer.tick(time.delta());
+}
+
+fn spawn_enemies_over_time(
+  mut commands: Commands,
+  window_query: Query<&Window, With<PrimaryWindow>>,
+  asset_server: Res<AssetServer>,
+  enemy_spawn_timer: Res<EnemySpawnTimer>,
+) {
+  if enemy_spawn_timer.timer.finished() {
+    let window = window_query.get_single().unwrap();
+
+    let random_x = random::<f32>() * window.width() - 10.0;
+    let random_y = random::<f32>() * window.height() - 10.0;
+
+    commands.spawn(
+      (
+        SpriteBundle {
+          transform: Transform::from_xyz(random_x, random_y, -1.0),
+          texture: asset_server.load("sprites/ball_red_large.png"),
+          ..default()
+        },
+        Enemy {
+          direction: Vec2::new(random::<f32>(), random::<f32>()).normalize(),
+        },
+      )
+    );
+  }
+}
+
+fn enemy_hit_player(
+  mut commands: Commands,
+  mut game_over_event_writer: EventWriter<GameOver>,
+  mut player_query: Query<(Entity, &Transform), With<Player>>,
+  enemy_query: Query<&Transform, With<Enemy>>,
+  audio: Res<Audio>,
+  asset_server: Res<AssetServer>,
+  score: Res<Score>
+) {
+  if let Ok((player_entity, player_transform)) = player_query.get_single_mut() {
+    for enemy_tranform in enemy_query.iter() {
+      let distance = player_transform
+        .translation
+        .distance(enemy_tranform.translation);
+
+      if distance < PLAYER_SIZE {
+        println!("Enemy hit player!! Game Over!!");
+        let sound_effect = asset_server.load("audio/explosionCrunch_000.ogg");
+        audio.play(sound_effect);
+        commands.entity(player_entity).despawn();
+        game_over_event_writer.send(GameOver { score: score.value });
+      }
+    }
   }
 }
