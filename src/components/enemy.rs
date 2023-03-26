@@ -1,7 +1,7 @@
 use {
   bevy::{prelude::*, window::PrimaryWindow },
   rand::prelude::*,
-  crate::components::player::{ Player, PLAYER_SIZE },
+  super::player::{ Player, PLAYER_SIZE },
   crate::events::game_over::GameOver,
   crate::resources::score::Score,
 };
@@ -20,21 +20,22 @@ pub struct EnemyPlugin;
 
 impl Plugin for EnemyPlugin {
   fn build(&self, app: &mut App) {
-    app.add_system(enemy_movement)
-      .add_system(update_enemy_direction)
-      .add_system(confine_enemy_movement)
+    app.configure_set(EnemySystemSet::Movement.before(EnemySystemSet::Confinement))
+      .init_resource::<EnemySpawnTimer>()
+      .add_startup_system(spawn_enemies)
+      .add_system(enemy_movement)
+      .add_system(update_enemy_direction.in_set(EnemySystemSet::Movement))
+      .add_system(confine_enemy_movement.in_set(EnemySystemSet::Confinement))
       .add_system(enemy_hit_player)
       .add_system(tick_enemy_spawn_timer)
       .add_system(spawn_enemies_over_time);
   }
 }
 
-pub struct EnemyStartUp;
-
-impl Plugin for EnemyStartUp {
-  fn build(&self, app: &mut App) {
-    app.add_startup_system(spawn_enemies);
-  }
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum EnemySystemSet {
+  Movement,
+  Confinement,
 }
 
 #[derive(Resource)]

@@ -6,8 +6,8 @@ mod events;
 use {
     bevy::prelude::*,
     components::{
-        player::{ PlayerPlugin, PlayerStartUp },
-        enemy::{ EnemyPlugin, EnemyStartUp, EnemySpawnTimer },
+        player::PlayerPlugin,
+        enemy::EnemyPlugin,
         star::{ StarStartUp, StarPlugin, StarSpawnTimer },
     },
     scene::{
@@ -27,11 +27,8 @@ fn main() {
         .init_resource::<Score>()
         .init_resource::<HighScores>()
         .init_resource::<StarSpawnTimer>()
-        .init_resource::<EnemySpawnTimer>()
         .add_event::<GameOver>()
         .add_plugin(SceneStartUpPlugin)
-        .add_plugin(PlayerStartUp)
-        .add_plugin(EnemyStartUp)
         .add_plugin(StarStartUp)
         .add_plugin(PlayerPlugin)
         .add_plugin(EnemyPlugin)
